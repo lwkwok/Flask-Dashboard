@@ -17,36 +17,131 @@
   <!-- DataTables JS -->
   <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
   <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.21/js/dataTables.bootstrap4.min.js"></script>
+  
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+  <style>
+    /* Force both chart cards to be 300px in height */
+    .equal-height-card {
+      height: 300px;
+    }
+    /* Common header styling for both cards */
+    .card-header h5 {
+      font-family: Arial, sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    /* Styling for health labels with small quartile text */
+    .health-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .health-label small {
+      font-size: 0.8rem;
+      color: #6c757d;
+      font-style: italic;
+    }
+    /* Header for the second chart */
+    .chart-header {
+      display: flex;
+      justify-content: flex-start; /* left-aligned */
+      align-items: center;
+    }
+    /* Trend info (arrow + percentage) placed at top-left of the chart */
+    .trend-info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: green;
+      font-weight: bold;
+      font-size: 1rem;
+    }
+    .trend-info small {
+      margin-left: 4px;
+      color: #6c757d;
+      font-weight: normal;
+      font-size: 0.8rem;
+    }
+  </style>
 </head>
 <body>
   <div class="container mt-4">
     <h1 class="mb-4">Dashboard</h1>
-    <!-- Row for charts side by side -->
-    <div class="row">
-      <!-- Donut Chart -->
+
+    <!-- Row with both charts side by side -->
+    <div class="row mb-4">
+      <!-- Left: System Health (Progress Bars) -->
       <div class="col-md-6">
-        <div class="card mb-4 shadow-sm">
+        <div class="card equal-height-card shadow-sm">
           <div class="card-header">
-            <h5 class="card-title mb-0">Subjects Distribution</h5>
+            <h5 class="card-title mb-0">System Health</h5>
           </div>
-          <div class="card-body text-center">
-            <canvas id="donutChart" width="300" height="300"></canvas>
+          <div class="card-body">
+            <!-- Overall Health -->
+            <div class="mb-3">
+              <div class="health-label">
+                <label>Overall Health: 90%</label>
+                <small>Good</small>
+              </div>
+              <div class="progress">
+                <div class="progress-bar" role="progressbar"
+                     style="width: 90%; background-color: #0D47A1;"
+                     aria-valuenow="90" aria-valuemin="0" aria-valuemax="100">
+                </div>
+              </div>
+            </div>
+            <!-- Software Health -->
+            <div class="mb-3">
+              <div class="health-label">
+                <label>Software Health: 100%</label>
+                <small>Excellent</small>
+              </div>
+              <div class="progress">
+                <div class="progress-bar" role="progressbar"
+                     style="width: 100%; background-color: #4285F4;"
+                     aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+                </div>
+              </div>
+            </div>
+            <!-- Hardware Health -->
+            <div class="mb-3">
+              <div class="health-label">
+                <label>Hardware Health: 80%</label>
+                <small>Needs Improvement</small>
+              </div>
+              <div class="progress">
+                <div class="progress-bar" role="progressbar"
+                     style="width: 80%; background-color: #64B5F6;"
+                     aria-valuenow="80" aria-valuemin="0" aria-valuemax="100">
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <!-- Bar Chart -->
+
+      <!-- Right: System Health Trend (line chart with arrow and 3% on top-left) -->
       <div class="col-md-6">
-        <div class="card mb-4 shadow-sm">
+        <div class="card equal-height-card shadow-sm">
           <div class="card-header">
-            <h5 class="card-title mb-0">Subject Scores</h5>
+            <div class="chart-header">
+              <h5 class="card-title mb-0">System Health Trend</h5>
+            </div>
           </div>
-          <div class="card-body text-center">
-            <canvas id="barChart" width="300" height="300"></canvas>
+          <div class="card-body d-flex align-items-center justify-content-center position-relative">
+            <!-- Arrow and 3% text on the top-left, no bounding box -->
+            <div class="trend-info">
+              ▲ 3%<small>vs last week</small>
+            </div>
+            <!-- Minimal line chart (no legend) -->
+            <canvas id="trendChart" width="300" height="300"></canvas>
           </div>
         </div>
       </div>
     </div>
+
     <!-- Table Section -->
     <div class="card shadow-sm">
       <div class="card-header">
@@ -74,50 +169,70 @@
   </div>
 
   <script>
-    // Donut Chart
-    var ctxDonut = document.getElementById('donutChart').getContext('2d');
-    new Chart(ctxDonut, {
-      type: 'doughnut',
-      data: {
-        labels: {{ donut_labels|tojson }},
-        datasets: [{
-          data: {{ donut_data|tojson }},
-          backgroundColor: ['#007bff', '#28a745', '#ffc107']
-        }]
-      },
-      options: {
-        responsive: true,
-        legend: {
-          position: 'bottom'
-        }
-      }
-    });
+    // Minimal line chart for "System Health Trend"
+    var ctxLine = document.getElementById('trendChart').getContext('2d');
 
-    // Bar Chart
-    var ctxBar = document.getElementById('barChart').getContext('2d');
-    new Chart(ctxBar, {
-      type: 'bar',
+    // Example: last 6 weekly dates up to 'today' (replace with actual dates)
+    const xLabels = [
+      "Feb 05", "Feb 12", "Feb 19", "Feb 26", "Mar 04", "Mar 11"
+    ];
+    // Example data points in range [0..100]
+    const yValues = [35, 50, 60, 45, 80, 90];
+
+    new Chart(ctxLine, {
+      type: 'line',
       data: {
-        labels: {{ bar_labels|tojson }},
+        labels: xLabels,
         datasets: [{
-          label: 'Scores',
-          data: {{ bar_data|tojson }},
-          backgroundColor: '#17a2b8'
+          // No label => no legend
+          label: 'Trend',
+          data: yValues,
+          borderColor: '#fd7e14',
+          borderWidth: 2,
+          fill: false,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: '#fd7e14',
+          pointHoverRadius: 6,
+          pointHoverBackgroundColor: '#fd7e14'
         }]
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
+        legend: {
+          display: false // hide the legend
+        },
+        tooltips: {
+          enabled: false // hide tooltips
+        },
         scales: {
           yAxes: [{
             ticks: {
-              beginAtZero: true
+              // Force range 0..100
+              min: 0,
+              max: 100,
+              callback: function(value) {
+                return value + '%';
+              }
+            },
+            gridLines: {
+              display: true // show horizontal grid lines if desired
+            }
+          }],
+          xAxes: [{
+            ticks: {
+              autoSkip: false // display each weekly date
+            },
+            gridLines: {
+              display: true // show vertical grid lines if desired
             }
           }]
         }
       }
     });
 
-    // DataTables initialization
+    // DataTables initialization for the table
     $(document).ready(function () {
       $('#studentsTable').DataTable();
     });
